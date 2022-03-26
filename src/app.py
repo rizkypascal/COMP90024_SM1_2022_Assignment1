@@ -5,6 +5,32 @@ import argparse
 from typing import Optional
 from mpi4py import MPI
 
+LANG_PATH = "../data/language.json"
+
+# TODO: not tested
+def grid(grid_file: str) -> dict:
+    id_grid = {
+        9: "A1", 10: "B1", 11: "C1", 12: "D1",
+        13: "A2", 14: "B2", 15: "C2", 16: "D2",
+        17: "A3", 18: "B3", 19: "C3", 20: "D3",
+        21: "A4", 22: "B4", 23: "C4", 24: "D4"
+    }
+
+    syd_grids = []
+
+    with open(grid_file, "r") as f:
+        grid = json.loads(f)
+
+    for data in grid[features]:
+        feature = {}
+        feature["id"] = id_grid[int(data["properties"]["id"])]
+        feature["x1"] = data["geometry"]["coordinates"][0][0]
+        feature["x2"] = data["geometry"]["coordinates"][2][0]
+        feature["y1"] = data["geometry"]["coordinates"][0][1]
+        feature["y2"] = data["geometry"]["coordinates"][1][1]
+        syd_grids.append(feature)
+
+    return syd_grids
 
 def run_app(twitter_file: str, grid_file: str):
     comm = MPI.COMM_WORLD
@@ -13,7 +39,8 @@ def run_app(twitter_file: str, grid_file: str):
 
     config = read_config(comm, rank, size, twitter_file)
 
-    # TODO: read grid_file
+    # TODO: not tested
+    syd_grids = grid(grid_file)
 
     line_start = config.get("line_start")
     chunk_size = config.get("chunk_size")
@@ -147,6 +174,9 @@ def read_twitter_obj(line: str) -> Optional[dict]:
             }
             Otherwise returns None
     """
+    with open(LANG_PATH, "r") as f:
+        lang_mapper = json.loads(f)
+
     line = line.strip()
     if line.endswith("}"):
         json_str = line.strip("}").strip("]")
@@ -155,14 +185,17 @@ def read_twitter_obj(line: str) -> Optional[dict]:
 
     obj = json.loads(json_str)
     iso_lang = obj.get("doc", {}).get("metadata", {}).get("iso_language_code")
-    # TODO: convert language code to name 
+    language = lang_mapper(iso_lang)
     # TODO: convert coordinates to grid A1, A2, C2, etc
-
-    return {
-        "language": iso_lang,
-        "grid": "xxx"
-    }
-
+    grid = "xxx"
+    # TODO: not tested
+    if language is not None and grid is not None:
+        return {
+            "language": language,
+            "grid": grid
+        }
+    else:
+        return None
 
 def parse_args():
     parser = argparse.ArgumentParser()
