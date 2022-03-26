@@ -6,12 +6,14 @@ from typing import Optional
 from mpi4py import MPI
 
 
-def run_app(filename: str):
+def run_app(twitter_file: str, grid_file: str):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
 
-    config = read_config(comm, rank, size, filename)
+    config = read_config(comm, rank, size, twitter_file)
+
+    # TODO: read grid_file
 
     line_start = config.get("line_start")
     chunk_size = config.get("chunk_size")
@@ -23,8 +25,20 @@ def run_app(filename: str):
 
     print(f"Rank: {rank}, Start at line: {line_start}")
 
+    # TODO: the final version of language_count will look something like
+    # {
+    #     "A1": {
+    #         "english": 10,
+    #         "french": 5
+    #     },
+    #     "A2": {
+    #         "chinese": 10,
+    #         "french": 1,
+    #         "english": 100
+    #     }
+    # }
     language_count = {}
-    with open(filename, "r") as f:
+    with open(twitter_file, "r") as f:
         count = 1
         for line in f:
             if count >= line_start and count <= line_end:
@@ -153,9 +167,10 @@ def read_twitter_obj(line: str) -> Optional[dict]:
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", help="File path to the twitter json file", dest="file_path", required=True)
+    parser.add_argument("--grid", help="File path to the grid json file", dest="grid_file_path", required=True)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     options = parse_args()
-    run_app(options.file_path)
+    run_app(options.file_path, options.grid_file_path)
