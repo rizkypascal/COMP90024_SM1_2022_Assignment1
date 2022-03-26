@@ -2,6 +2,7 @@ import re
 import json
 import argparse
 
+from typing import Optional
 from mpi4py import MPI
 
 
@@ -22,14 +23,43 @@ def run_app(filename: str):
 
     print(f"Rank: {rank}, Start at line: {line_start}")
 
+    language_count = {}
     with open(filename, "r") as f:
         count = 1
         for line in f:
             if count >= line_start and count <= line_end:
+                # TODO: handle language count per grid
                 obj = read_twitter_obj(line)
-                print(f'Line {count}: {obj.get("id", "-")}')
+                lang = obj.get("language", "-")
+                print(f'Line {count}: {lang}')
+
+                if lang not in language_count:
+                    language_count[lang] = 0
+                
+                language_count[lang] += 1
 
             count += 1
+
+    combined = comm.gather(language_count)
+
+    if rank == 0:
+        print_report(combined)
+        
+
+def print_report(gathered_count: dict):
+    print("===== Report =====")
+    total_count = {}
+    for data in gathered_count:
+        for lang in data:
+            val = data[lang]
+            if lang not in total_count:
+                total_count[lang] = 0
+
+            total_count[lang] += val
+
+    for lang in total_count:
+        print(f"{lang}: {total_count[lang]}")
+
 
 def read_config(comm, rank: int, size: int, filename: str) -> dict:
     """Read the config for this core.
@@ -88,14 +118,20 @@ def read_config(comm, rank: int, size: int, filename: str) -> dict:
 
     return config
 
-def read_twitter_obj(line: str) -> dict:
-    """Read each line of Twitter json file and return a dict object.
+def read_twitter_obj(line: str) -> Optional[dict]:
+    """Read each line of Twitter json file and return a dict object with relevant metadata.
 
     Args:
         line (str): raw line from input file
 
     Returns:
-        dict: Twitter object
+        dict: dict with relevant metadata or None
+            If language and coordinates are known, returns the following object
+            {
+                "language": "English",
+                "grid": "A1"
+            }
+            Otherwise returns None
     """
     line = line.strip()
     if line.endswith("}"):
@@ -104,8 +140,14 @@ def read_twitter_obj(line: str) -> dict:
         json_str = line.strip(",")
 
     obj = json.loads(json_str)
+    iso_lang = obj.get("doc", {}).get("metadata", {}).get("iso_language_code")
+    # TODO: convert language code to name 
+    # TODO: convert coordinates to grid A1, A2, C2, etc
 
-    return obj
+    return {
+        "language": iso_lang,
+        "grid": "xxx"
+    }
 
 
 def parse_args():
