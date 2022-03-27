@@ -66,6 +66,11 @@ def run_app(twitter_file: str, grid_file: str):
     with open(twitter_file, "r") as f:
         count = 1
         for line in f:
+            
+            # Stop if we have reached end of chunk for this core
+            if count > line_end:
+                break
+
             if count >= line_start and count <= line_end:
                 # TODO: handle language count per grid
                 obj = read_twitter_obj(line, syd_grids)
@@ -80,6 +85,7 @@ def run_app(twitter_file: str, grid_file: str):
 
             count += 1
 
+    print(language_count)
     combined = comm.gather(language_count)
 
     if rank == 0:
@@ -180,10 +186,12 @@ def read_twitter_obj(line: str, syd_grids: dict) -> Optional[dict]:
         lang_mapper = json.load(f)
 
     line = line.strip()
-    if line.endswith("}"):
+    if line.endswith("]}"):
         json_str = line.strip("}").strip("]")
-    else:
+    elif line.endswith(","):
         json_str = line.strip(",")
+    elif line.endswith("}"):
+        json_str = line.strip("}")
 
     obj = json.loads(json_str)
     tweet_coordinates = obj.get("doc", {}).get("coordinates")
