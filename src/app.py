@@ -5,9 +5,8 @@ import argparse
 from typing import Optional
 from mpi4py import MPI
 
-LANG_PATH = "../data/language.json"
+LANG_PATH = "data/language.json"
 
-# TODO: not tested
 def grid(grid_file: str) -> dict:
     id_grid = {
         9: "A1", 10: "B1", 11: "C1", 12: "D1",
@@ -19,15 +18,15 @@ def grid(grid_file: str) -> dict:
     syd_grids = []
 
     with open(grid_file, "r") as f:
-        grid = json.loads(f)
+        grid = json.load(f)
 
-    for data in grid[features]:
+    for data in grid["features"]:
         feature = {}
         feature["id"] = id_grid[int(data["properties"]["id"])]
-        feature["x1"] = data["geometry"]["coordinates"][0][0]
-        feature["x2"] = data["geometry"]["coordinates"][2][0]
-        feature["y1"] = data["geometry"]["coordinates"][0][1]
-        feature["y2"] = data["geometry"]["coordinates"][1][1]
+        feature["x1"] = data["geometry"]["coordinates"][0][0][0]
+        feature["x2"] = data["geometry"]["coordinates"][0][2][0]
+        feature["y1"] = data["geometry"]["coordinates"][0][0][1]
+        feature["y2"] = data["geometry"]["coordinates"][0][1][1]
         syd_grids.append(feature)
 
     return syd_grids
@@ -39,7 +38,6 @@ def run_app(twitter_file: str, grid_file: str):
 
     config = read_config(comm, rank, size, twitter_file)
 
-    # TODO: not tested
     syd_grids = grid(grid_file)
 
     line_start = config.get("line_start")
@@ -70,14 +68,15 @@ def run_app(twitter_file: str, grid_file: str):
         for line in f:
             if count >= line_start and count <= line_end:
                 # TODO: handle language count per grid
-                obj = read_twitter_obj(line)
-                lang = obj.get("language", "-")
-                print(f'Line {count}: {lang}')
+                obj = read_twitter_obj(line, syd_grids)
+                if obj is not None:
+                    lang = obj.get("language", "-")
+                    print(f'Line {count}: {lang}')
 
-                if lang not in language_count:
-                    language_count[lang] = 0
-                
-                language_count[lang] += 1
+                    if lang not in language_count:
+                        language_count[lang] = 0
+
+                    language_count[lang] += 1
 
             count += 1
 
@@ -85,7 +84,10 @@ def run_app(twitter_file: str, grid_file: str):
 
     if rank == 0:
         print_report(combined)
-        
+
+def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> str:
+    #TODO check tweet coordinates to be allocated on which grid
+    return "grid"
 
 def print_report(gathered_count: dict):
     print("===== Report =====")
@@ -159,7 +161,7 @@ def read_config(comm, rank: int, size: int, filename: str) -> dict:
 
     return config
 
-def read_twitter_obj(line: str) -> Optional[dict]:
+def read_twitter_obj(line: str, syd_grids: dict) -> Optional[dict]:
     """Read each line of Twitter json file and return a dict object with relevant metadata.
 
     Args:
@@ -175,7 +177,7 @@ def read_twitter_obj(line: str) -> Optional[dict]:
             Otherwise returns None
     """
     with open(LANG_PATH, "r") as f:
-        lang_mapper = json.loads(f)
+        lang_mapper = json.load(f)
 
     line = line.strip()
     if line.endswith("}"):
@@ -184,11 +186,16 @@ def read_twitter_obj(line: str) -> Optional[dict]:
         json_str = line.strip(",")
 
     obj = json.loads(json_str)
+    tweet_coordinates = obj.get("doc", {}).get("coordinates")
+
+    if tweet_coordinates is None:
+        return None
+
     iso_lang = obj.get("doc", {}).get("metadata", {}).get("iso_language_code")
-    language = lang_mapper(iso_lang)
+    language = lang_mapper[iso_lang]
+
     # TODO: convert coordinates to grid A1, A2, C2, etc
-    grid = "xxx"
-    # TODO: not tested
+    grid = allocate_tweet_to_grid(syd_grids, tweet_coordinates)
     if language is not None and grid is not None:
         return {
             "language": language,
