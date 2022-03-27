@@ -68,38 +68,31 @@ def run_app(twitter_file: str, grid_file: str):
     #     }
     # }
     language_count = {}
-    for line_num in range(line_start, line_end+1):
-        line = linecache.getline(twitter_file, line_num)
-        obj = read_twitter_obj(line)
-        if obj is None:
-            continue
         
-        lang = obj.get("language", "-")
-        
-        print(f'Line {line_num}: {lang}')
+    with open(twitter_file, "r") as f:
+        count = 1
+        for line in f:
+            if count > line_end:
+                break
 
-        if lang not in language_count:
-            language_count[lang] = 0
-        
-        language_count[lang] += 1
-        
+            if count >= line_start and count <= line_end:
+                # TODO: handle language count per grid
+                obj = read_twitter_obj(line)
 
-    # with open(twitter_file, "r") as f:
-    #     count = 1
-    #     for line in f:
-    #         if count >= line_start and count <= line_end:
-    #             # TODO: handle language count per grid
-    #             obj = read_twitter_obj(line)
-    #             lang = obj.get("language", "-")
-    #             print(f'Line {count}: {lang}')
+                if obj is None:
+                    continue
 
-    #             if lang not in language_count:
-    #                 language_count[lang] = 0
+                lang = obj.get("language", "-")
+                # print(f'Line {count}: {lang}')
+
+                if lang not in language_count:
+                    language_count[lang] = 0
                 
-    #             language_count[lang] += 1
+                language_count[lang] += 1
 
-    #         count += 1
+            count += 1
 
+    print(language_count)
     combined = comm.gather(language_count)
 
     if rank == 0:
