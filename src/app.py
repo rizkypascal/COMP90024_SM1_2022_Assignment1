@@ -47,9 +47,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
         lang_mapper = json.load(f)
 
     line_start = config.get("line_start")
-    chunk_size = config.get("chunk_size")
     num_rows = config.get("num_rows")
-    line_end = line_start + chunk_size - 1
     
     if rank == size - 1:
         line_end = num_rows + 1
@@ -71,22 +69,23 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     language_count = {}
     with open(twitter_file, "r") as f:
         count = 1
+        next_line = line_start
         for line in f:
             
-            # Stop if we have reached end of chunk for this core
-            if count > line_end:
-                break
-
-            if count >= line_start and count <= line_end:
+            if count == next_line:
                 # TODO: handle language count per grid
                 obj = read_twitter_obj(line, syd_grids, lang_mapper)
                 if obj is not None:
                     lang = obj.get("language", "-")
+                    # print(f"Line {count}: lang {lang}")
 
                     if lang not in language_count:
                         language_count[lang] = 0
 
                     language_count[lang] += 1
+                
+                # Each process will parse alternate line
+                next_line += size
 
             count += 1
 
@@ -94,6 +93,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     combined = comm.gather(language_count)
 
     if rank == 0:
+        print(combined)
         print_report(combined)
 
 def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> str:
@@ -116,7 +116,7 @@ def print_report(gathered_count: dict):
 
 
 def read_config(comm, rank: int, size: int, filename: str) -> dict:
-    """Read the config for this core.
+    """Read the config for this process.
 
     Args:
         comm (_type_): _description_
@@ -145,27 +145,17 @@ def read_config(comm, rank: int, size: int, filename: str) -> dict:
             if size == 1:
                 config = {
                     "line_start": 2, 
-                    "chunk_size": num_rows,
                     "num_rows": num_rows
                 }
             else:
                 line_start = 2
-                remainder = num_rows % size
 
                 for i in range(size):
-                    chunk_size = int(num_rows / size)
-
-                    if i < remainder:
-                        chunk_size += 1
-
                     config = {
-                        "line_start": line_start, 
-                        "chunk_size": chunk_size,
+                        "line_start": line_start + i, 
                         "num_rows": num_rows
                     }
                     comm.send(config, dest=i)
-
-                    line_start += chunk_size
 
     if size > 1:
         config = comm.recv(source=0)
