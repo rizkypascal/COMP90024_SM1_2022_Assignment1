@@ -76,7 +76,6 @@ def run_app(twitter_file: str, grid_file: str):
                 obj = read_twitter_obj(line, syd_grids)
                 if obj is not None:
                     lang = obj.get("language", "-")
-                    print(f'Line {count}: {lang}')
 
                     if lang not in language_count:
                         language_count[lang] = 0
@@ -200,7 +199,11 @@ def read_twitter_obj(line: str, syd_grids: dict) -> Optional[dict]:
         return None
 
     iso_lang = obj.get("doc", {}).get("metadata", {}).get("iso_language_code")
-    language = lang_mapper[iso_lang]
+    language = lang_mapper.get(iso_lang)
+
+    if language is None:
+        print(f"ERROR: unknown language code {iso_lang}")
+        return None
 
     # TODO: convert coordinates to grid A1, A2, C2, etc
     grid = allocate_tweet_to_grid(syd_grids, tweet_coordinates)
