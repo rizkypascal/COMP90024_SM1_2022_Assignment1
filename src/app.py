@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import argparse
@@ -5,7 +6,8 @@ import argparse
 from typing import Optional
 from mpi4py import MPI
 
-LANG_PATH = "data/language.json"
+current_dir = os.path.dirname(os.path.abspath(__file__))
+LANG_PATH = os.path.join(current_dir, "..", "data", "language.json")
 
 def grid(grid_file: str) -> dict:
     id_grid = {
@@ -31,7 +33,7 @@ def grid(grid_file: str) -> dict:
 
     return syd_grids
 
-def run_app(twitter_file: str, grid_file: str):
+def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
@@ -39,6 +41,9 @@ def run_app(twitter_file: str, grid_file: str):
     config = read_config(comm, rank, size, twitter_file)
 
     syd_grids = grid(grid_file)
+
+    with open(lang_map_file, "r") as f:
+        lang_mapper = json.load(f)
 
     line_start = config.get("line_start")
     chunk_size = config.get("chunk_size")
@@ -73,7 +78,7 @@ def run_app(twitter_file: str, grid_file: str):
 
             if count >= line_start and count <= line_end:
                 # TODO: handle language count per grid
-                obj = read_twitter_obj(line, syd_grids)
+                obj = read_twitter_obj(line, syd_grids, lang_mapper)
                 if obj is not None:
                     lang = obj.get("language", "-")
 
@@ -166,7 +171,7 @@ def read_config(comm, rank: int, size: int, filename: str) -> dict:
 
     return config
 
-def read_twitter_obj(line: str, syd_grids: dict) -> Optional[dict]:
+def read_twitter_obj(line: str, syd_grids: dict, lang_mapper: dict) -> Optional[dict]:
     """Read each line of Twitter json file and return a dict object with relevant metadata.
 
     Args:
@@ -181,8 +186,7 @@ def read_twitter_obj(line: str, syd_grids: dict) -> Optional[dict]:
             }
             Otherwise returns None
     """
-    with open(LANG_PATH, "r") as f:
-        lang_mapper = json.load(f)
+    
 
     line = line.strip()
     if line.endswith("]}"):
@@ -219,9 +223,17 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", help="File path to the twitter json file", dest="file_path", required=True)
     parser.add_argument("--grid", help="File path to the grid json file", dest="grid_file_path", required=True)
+    parser.add_argument(
+        "--lang-map", help="File path to a json file that provides language iso code to name map", 
+        dest="lang_map_file_path", default=LANG_PATH
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     options = parse_args()
-    run_app(options.file_path, options.grid_file_path)
+    start = MPI.Wtime()
+    
+    run_app(options.file_path, options.grid_file_path, options.lang_map_file_path)
+    
+    print(f"Elapsed time: {MPI.Wtime() - start} seconds")
