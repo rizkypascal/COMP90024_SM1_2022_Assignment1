@@ -1,4 +1,5 @@
 import os
+from platform import java_ver
 import re
 import json
 import argparse
@@ -193,6 +194,12 @@ def read_twitter_obj(line: str, syd_grids: dict, lang_mapper: dict) -> Optional[
         json_str = line.strip("}").strip("]")
     elif line.endswith(","):
         json_str = line.strip(",")
+    else:
+        json_str = line
+
+    # empty line
+    if not json_str:
+        return None
 
     obj = json.loads(json_str)
     tweet_coordinates = obj.get("doc", {}).get("coordinates")
