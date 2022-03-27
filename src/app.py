@@ -193,8 +193,6 @@ def read_twitter_obj(line: str, syd_grids: dict, lang_mapper: dict) -> Optional[
         json_str = line.strip("}").strip("]")
     elif line.endswith(","):
         json_str = line.strip(",")
-    elif line.endswith("}"):
-        json_str = line.strip("}")
 
     obj = json.loads(json_str)
     tweet_coordinates = obj.get("doc", {}).get("coordinates")
