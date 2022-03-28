@@ -7,6 +7,31 @@ from mpi4py import MPI
 
 LANG_PATH = "data/language.json"
 
+def simplify_coordinates(coordinates: list) -> dict:
+    """
+        To convert polygon coordinates to
+        x1(xmin), x2(xmax), y1(ymin), y2(ymax)
+    """
+    new_coordinates = {
+        "x1": 0.0, "x2": 0.0,
+        "y1": 0.0, "y2": 0.0
+    }
+    new_coordinates["x1"] = new_coordinates["x2"] = coordinates[0][0][0]
+    new_coordinates["y1"] = new_coordinates["y2"] = coordinates[0][0][1]
+
+    for i in coordinates[0][1:]:
+        if new_coordinates["x1"] < i[0]:
+            new_coordinates["x2"] = i[0]
+        else:
+            new_coordinates["x1"] = i[0]
+        
+        if new_coordinates["y1"] < i[1]:
+            new_coordinates["y2"] = i[1]
+        else:
+            new_coordinates["y1"] = i[1]
+    
+    return new_coordinates
+
 def grid(grid_file: str) -> dict:
     id_grid = {
         9: "A1", 10: "B1", 11: "C1", 12: "D1",
@@ -23,10 +48,11 @@ def grid(grid_file: str) -> dict:
     for data in grid["features"]:
         feature = {}
         feature["id"] = id_grid[int(data["properties"]["id"])]
-        feature["x1"] = data["geometry"]["coordinates"][0][0][0]
-        feature["x2"] = data["geometry"]["coordinates"][0][2][0]
-        feature["y1"] = data["geometry"]["coordinates"][0][0][1]
-        feature["y2"] = data["geometry"]["coordinates"][0][1][1]
+        coordinates = simplify_coordinates(data["geometry"]["coordinates"])
+        feature["x1"] = coordinates["x1"]
+        feature["x2"] = coordinates["x2"]
+        feature["y1"] = coordinates["y1"]
+        feature["y2"] = coordinates["y2"]
         syd_grids.append(feature)
 
     return syd_grids
@@ -85,9 +111,121 @@ def run_app(twitter_file: str, grid_file: str):
     if rank == 0:
         print_report(combined)
 
-def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> str:
-    #TODO check tweet coordinates to be allocated on which grid
-    return "grid"
+def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
+    #TODO not yet handle edge case such as tweet vertices overlap multicells
+    """To allocate tweet coordinates into grid
+
+    These rules must be applied whether the tweets are assignable to the cell or not:
+        - tweet(x1,x2))(y1,y2) inclusive in cell(x1, x2)(y1, y2) (in the cell) (cond1)
+        = tweet(x2) is not in cell coordinates, others all in cell coordinates (overlapping y axis) (cond2)
+        - tweet(x2) is not in cell coordinates, others all in cell coordinates (overlapping x axis) (cond3)
+        - at least one x axis and y axis (2 points) must be exist in cell, with conditions: (cond4)
+            - if only intersect with one cell, then assign that cell
+            - if intersect with 2 cells, then check which axis on the same position,
+              then take cell with another axis on min value (eg: exist in A1 and A2 with same y axis value, therefore take the x axis min value) (cond5)
+            - if intersect more than 2 cells, exclude it (cond6) 
+    """
+    grid = None
+    two_points_coordinate = {
+        "x1y1": None,
+        "x1y2": None,
+        "x2y1": None,
+        "x2y2": None
+    }
+    two_points_count = 0
+    tweet_coordinates = simplify_coordinates(coordinates)
+
+    for i in syd_grids:
+        # cond1
+        if (tweet_coordinates["x1"] >= i["x1"] and tweet_coordinates["x1"] < i["x2"]) \
+        and (tweet_coordinates["x2"] > i["x1"] and tweet_coordinates["x2"] <= i["x2"]) \
+        and (tweet_coordinates["y1"] >= i["y1"] and tweet_coordinates["y1"] < i["y2"]) \
+        and (tweet_coordinates["y2"] > i["y1"] and tweet_coordinates["y2"] <= i["y2"]):
+            return i["id"]
+        
+        # cond2
+        elif (tweet_coordinates["x1"] >= i["x1"] and tweet_coordinates["x1"] < i["x2"]) \
+        and (tweet_coordinates["x2"] <= i["x1"] or tweet_coordinates["x2"] > i["x2"]) \
+        and (tweet_coordinates["y1"] >= i["y1"] and tweet_coordinates["y1"] < i["y2"]) \
+        and (tweet_coordinates["y2"] > i["y1"] and tweet_coordinates["y2"] <= i["y2"]):
+            return i["id"]
+        
+        # cond3
+        elif (tweet_coordinates["x1"] >= i["x1"] and tweet_coordinates["x1"] < i["x2"]) \
+        and (tweet_coordinates["x2"] > i["x1"] and tweet_coordinates["x2"] <= i["x2"]) \
+        and (tweet_coordinates["y1"] >= i["y1"] and tweet_coordinates["y1"] < i["y2"]) \
+        and (tweet_coordinates["y2"] <= i["y1"] or tweet_coordinates["y2"] > i["y2"]):
+            return i["id"]
+        
+        # cond2 but still loop to check if other side of x axis exist
+        elif (tweet_coordinates["x1"] < i["x1"] or tweet_coordinates["x1"] >= i["x2"]) \
+        and (tweet_coordinates["x2"] > i["x1"] and tweet_coordinates["x2"] <= i["x2"]) \
+        and (tweet_coordinates["y1"] >= i["y1"] and tweet_coordinates["y1"] < i["y2"]) \
+        and (tweet_coordinates["y2"] > i["y1"] and tweet_coordinates["y2"] <= i["y2"]):
+            grid = i["id"]
+        
+        # cond2 but still loop to check if other side of y axis exist
+        elif (tweet_coordinates["x1"] >= i["x1"] and tweet_coordinates["x1"] < i["x2"]) \
+        and (tweet_coordinates["x2"] > i["x1"] and tweet_coordinates["x2"] <= i["x2"]) \
+        and (tweet_coordinates["y1"] < i["y1"] or tweet_coordinates["y1"] >= i["y2"]) \
+        and (tweet_coordinates["y2"] > i["y1"] and tweet_coordinates["y2"] <= i["y2"]):
+            grid = i["id"]
+
+        # cond4
+        elif (tweet_coordinates["x1"] < i["x1"] and tweet_coordinates["x1"] >= i["x2"]) \
+        and (tweet_coordinates["x2"] <= i["x1"] or tweet_coordinates["x2"] > i["x2"]) \
+        and (tweet_coordinates["y1"] < i["y1"] or tweet_coordinates["y1"] >= i["y2"]) \
+        and (tweet_coordinates["y2"] > i["y1"] and tweet_coordinates["y2"] <= i["y2"]):
+            two_points_count += 1
+            two_points_coordinate["x1y2"] = i["id"]
+        
+        # cond4
+        elif (tweet_coordinates["x1"] >= i["x1"] and tweet_coordinates["x1"] < i["x2"]) \
+        and (tweet_coordinates["x2"] <= i["x1"] or tweet_coordinates["x2"] > i["x2"]) \
+        and (tweet_coordinates["y1"] < i["y1"] and tweet_coordinates["y1"] >= i["y2"]) \
+        and (tweet_coordinates["y2"] <= i["y1"] or tweet_coordinates["y2"] > i["y2"]):
+            two_points_count += 1
+            two_points_coordinate["x1y1"] = i["id"]
+        
+        # cond4
+        elif (tweet_coordinates["x1"] < i["x1"] or tweet_coordinates["x1"] >= i["x2"]) \
+        and (tweet_coordinates["x2"] > i["x1"] and tweet_coordinates["x2"] <= i["x2"]) \
+        and (tweet_coordinates["y1"] < i["y1"] and tweet_coordinates["y1"] >= i["y2"]) \
+        and (tweet_coordinates["y2"] <= i["y1"] or tweet_coordinates["y2"] > i["y2"]):
+            two_points_count += 1
+            two_points_coordinate["x2y1"] = i["id"]
+        
+        # cond4
+        elif (tweet_coordinates["x1"] < i["x1"] or tweet_coordinates["x1"] >= i["x2"]) \
+        and (tweet_coordinates["x2"] > i["x1"] and tweet_coordinates["x2"] <= i["x2"]) \
+        and (tweet_coordinates["y1"] < i["y1"] or tweet_coordinates["y1"] >= i["y2"]) \
+        and (tweet_coordinates["y2"] > i["y1"] and tweet_coordinates["y2"] <= i["y2"]):
+            two_points_count += 1
+            two_points_coordinate["x2y2"] = i["id"]
+
+        # cond6
+        if(two_points_count > 2):
+            return None
+
+    if(grid is not None):
+        return grid
+    else:
+        # cond5
+        if(two_points_coordinate["x1y2"] is not None and two_points_coordinate["x2y2"] is not None):
+            return two_points_coordinate["x1y2"]
+        elif(two_points_coordinate["x2y1"] is not None and two_points_coordinate["x2y2"] is not None):
+            return two_points_coordinate["x2y1"]
+        else:
+            if(two_points_coordinate["x1y1"] is not None and two_points_coordinate["x1y2"] is None and two_points_coordinate["x2y1"] is None and two_points_coordinate["x2y2"] is None):
+                return two_points_coordinate["x1y1"]
+            elif(two_points_coordinate["x1y1"] is None and two_points_coordinate["x1y2"] is not None and two_points_coordinate["x2y1"] is None and two_points_coordinate["x2y2"] is None):
+                return two_points_coordinate["x1y2"]
+            elif(two_points_coordinate["x1y1"] is None and two_points_coordinate["x1y2"] is None and two_points_coordinate["x2y1"] is not None and two_points_coordinate["x2y2"] is None):
+                return two_points_coordinate["x2y1"]
+            elif(two_points_coordinate["x1y1"] is None and two_points_coordinate["x1y2"] is None and two_points_coordinate["x2y1"] is None and two_points_coordinate["x2y2"] is not None):
+                return two_points_coordinate["x2y2"]
+
+    return None
 
 def print_report(gathered_count: dict):
     print("===== Report =====")
@@ -186,9 +324,10 @@ def read_twitter_obj(line: str, syd_grids: dict) -> Optional[dict]:
         json_str = line.strip(",")
 
     obj = json.loads(json_str)
-    tweet_coordinates = obj.get("doc", {}).get("coordinates")
 
-    if tweet_coordinates is None:
+    try:
+        tweet_coordinates = obj.get("doc", {}).get("place", {}).get("bounding_box", {}).get("coordinates")
+    except AttributeError:
         return None
 
     iso_lang = obj.get("doc", {}).get("metadata", {}).get("iso_language_code")
