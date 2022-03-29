@@ -188,7 +188,7 @@ def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
                 if tweet_coordinates["y2"] <= prev_y2:
                     return syd_grids[i]
 
-        # cond2 but still loop to check if other side of x axis exist
+        # cond3 to check if lowest x axis exist
         elif (tweet_coordinates["x1"] < syd_grids[i]["x1"] or tweet_coordinates["x1"] >= syd_grids[i]["x2"]) \
         and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
         and (tweet_coordinates["y1"] >= syd_grids[i]["y1"] and tweet_coordinates["y1"] < syd_grids[i]["y2"]) \
@@ -208,7 +208,7 @@ def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
                 if tweet_coordinates["x1"] >= prev_x1:
                     return syd_grids[prev_cell]
 
-        # cond3 but still loop to check if other side of y axis exist
+        # cond3 to check if lowest y axis exist
         elif (tweet_coordinates["x1"] >= syd_grids[i]["x1"] and tweet_coordinates["x1"] < syd_grids[i]["x2"]) \
         and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
         and (tweet_coordinates["y1"] < syd_grids[i]["y1"] or tweet_coordinates["y1"] >= syd_grids[i]["y2"]) \
