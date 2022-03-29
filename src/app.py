@@ -224,8 +224,8 @@ def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
                 return i
             else:
                 next_cell = rows[next_row] + i[1]
-                next_y2 = syd_grids[next_cell]["y2"]
-                if tweet_coordinates["y2"] <= next_y2:
+                next_y1 = syd_grids[next_cell]["y1"]
+                if tweet_coordinates["y1"] >= next_y1:
                     return next_cell
 
         # cond4 with xmin and ymax in cell
@@ -254,8 +254,8 @@ def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
                     return i
             elif row_in_cell != -1 and column_in_cell == -1:
                 next_cell = rows[next_row] + i[1]
-                next_y2 = syd_grids[next_cell]["y2"]
-                if tweet_coordinates["y2"] <= next_y2:
+                next_y1 = syd_grids[next_cell]["y1"]
+                if tweet_coordinates["y1"] >= next_y1:
                     return next_cell
 
         # cond4 with xmin and ymin in cell
@@ -345,8 +345,8 @@ def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
                     return prev_cell
             elif row_in_cell != -1 and column_in_cell == -1:
                 next_cell = rows[next_row] + i[1]
-                next_y2 = syd_grids[next_cell]["y2"]
-                if tweet_coordinates["y2"] <= next_y2:
+                next_y1 = syd_grids[next_cell]["y1"]
+                if tweet_coordinates["y1"] >= next_y1:
                     return next_cell
 
     return None
