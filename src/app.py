@@ -71,6 +71,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
+    start = MPI.Wtime()
 
     config = read_config(comm, rank, size, twitter_file)
 
@@ -82,7 +83,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     line_start = config.get("line_start")
     num_rows = config.get("num_rows")
 
-    print(f"Rank: {rank}, Start at line: {line_start}")
+    # print(f"Rank: {rank}, Start at line: {line_start}")
 
     # TODO: the final version of language_count will look something like
     # {
@@ -125,12 +126,14 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
 
             count += 1
 
-    print(language_count)
     combined = comm.gather(language_count)
 
     if rank == 0:
-        print(combined)
-        print_report(combined)
+        sorted_count = count_and_sort(combined)
+        print_report(sorted_count)
+        print(f"Elapsed time: {MPI.Wtime() - start} seconds")
+
+    print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
 
 
 def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
@@ -361,7 +364,7 @@ def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
 
     return None
 
-def print_report(gathered_count: dict):
+def count_and_sort(gathered_count: dict):
     print("===== Report =====")
     total_count = {}
     for data in gathered_count:
@@ -378,8 +381,18 @@ def print_report(gathered_count: dict):
 
                 total_count[grid][lang] += val
 
+    sorted_count = {}
     for grid in total_count:
-        print(f"{grid}: {total_count[grid]}")
+        sorted_count[grid] = {k: v for k, v in sorted(total_count[grid].items(), key=lambda item: item[1], reverse=True)}
+
+    sorted_count = {k: v for k, v in sorted(sorted_count.items(), key=lambda item: item[0])}
+
+    return sorted_count
+
+
+def print_report(summary: dict):
+    for grid in summary:
+        print(f"{grid}: {summary[grid]}")
 
 
 def read_config(comm, rank: int, size: int, filename: str) -> dict:
@@ -499,8 +512,5 @@ def parse_args():
 
 if __name__ == "__main__":
     options = parse_args()
-    start = MPI.Wtime()
     
     run_app(options.file_path, options.grid_file_path, options.lang_map_file_path)
-    
-    print(f"Elapsed time: {MPI.Wtime() - start} seconds")
