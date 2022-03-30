@@ -132,8 +132,8 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
         sorted_count = count_and_sort(combined)
         print_report(sorted_count)
         print(f"Elapsed time: {MPI.Wtime() - start} seconds")
-
-    print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
+    else:
+        print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
 
 
 def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
@@ -365,7 +365,6 @@ def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
     return None
 
 def count_and_sort(gathered_count: dict):
-    print("===== Report =====")
     total_count = {}
     for data in gathered_count:
         for grid in data:
@@ -387,13 +386,40 @@ def count_and_sort(gathered_count: dict):
 
     sorted_count = {k: v for k, v in sorted(sorted_count.items(), key=lambda item: item[0])}
 
-    return sorted_count
+    overall_count = {}
+    for grid in sorted_count:
+        overall_count[grid] = {
+            "total_tweets": sum(val for val in sorted_count[grid].values()),
+            "total_lang": len(sorted_count[grid].keys()),
+            "languages": sorted_count[grid]
+        }
+        
+    return overall_count
 
 
 def print_report(summary: dict):
-    for grid in summary:
-        print(f"{grid}: {summary[grid]}")
+    delimiter = "\t"
+    top_count = 10
+    cols = {"Cell": 4, "#Total Tweets": 14, "#Number of Languages Used": 26, "#Top 10 Languages & # Tweets": 28}
+    
+    header = [name.center(width) for name, width in cols.items()]
 
+    print("===== Report =====")
+    print(delimiter.join(header))
+    for grid in summary:
+        # print(f"{grid}: {summary[grid]}")
+        col_widths = [w for w in cols.values()]
+        lang_summary = [f"{lang}-{count}" for lang, count in summary[grid]["languages"].items()]
+        row = [
+            grid.ljust(col_widths[0]),
+            str(summary[grid]["total_tweets"]).ljust(col_widths[1]),
+            str(summary[grid]["total_lang"]).ljust(col_widths[2]),
+            ", ".join(lang_summary[:top_count]).ljust(col_widths[3])
+        ]
+
+        print(delimiter.join(row))
+
+    print("==================")
 
 def read_config(comm, rank: int, size: int, filename: str) -> dict:
     """Read the config for this process.
