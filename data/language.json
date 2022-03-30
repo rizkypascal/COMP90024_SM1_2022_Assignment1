@@ -32,5 +32,32 @@
     "ur": "Urdu",
     "vi": "Vietnamese",
     "zh-cn": "Chinese",
-    "zh-tw": "Chinese"
+    "zh-tw": "Chinese",
+
+    "ca": "Catalan",
+    "cy": "Welsh",
+    "et": "Estonian",
+    "ht": "Haitian",
+    "in": "Indonesian",
+    "lt": "Lithuanian",
+    "tl": "Tagalog",
+    "zh": "Chinese",
+    "bg": "Bulgarian",
+    "eu": "Basque",
+    "gu": "Gujarati",
+    "is": "Icelandic",
+    "iw": "Hebrew",
+    "kn": "Kannada",
+    "lv": "Latvian",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "ne": "Nepali",
+    "or": "Oriya",
+    "ps": "Pashto",
+    "si": "Sinhala",
+    "sl": "Slovenian",
+    "sr": "Serbian",
+    "ta": "Tamil",
+    "te": "Telugu"
+
 }

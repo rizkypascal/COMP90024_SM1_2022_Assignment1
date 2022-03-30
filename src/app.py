@@ -1,15 +1,15 @@
 import os
-from platform import java_ver
 import re
 import json
 import argparse
 
 from typing import Optional
 from mpi4py import MPI
-from pyparsing import col
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 LANG_PATH = os.path.join(current_dir, "..", "data", "language.json")
+
+LANG_CODE_UNDEFINED = "und"
 
 def simplify_coordinates(coordinates: list) -> dict:
     """
@@ -61,6 +61,13 @@ def grid(grid_file: str) -> dict:
     return syd_grids
 
 def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
+    """Main function to 
+
+    Args:
+        twitter_file (str): path to twitter json file
+        grid_file (str): path to grid json file
+        lang_map_file (str): path to language map file
+    """
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
@@ -74,9 +81,6 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
 
     line_start = config.get("line_start")
     num_rows = config.get("num_rows")
-    
-    if rank == size - 1:
-        line_end = num_rows + 1
 
     print(f"Rank: {rank}, Start at line: {line_start}")
 
@@ -102,13 +106,19 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
                 # TODO: handle language count per grid
                 obj = read_twitter_obj(line, syd_grids, lang_mapper)
                 if obj is not None:
-                    lang = obj.get("language", "-")
+                    lang = obj.get("language")
+                    grid_code = obj.get("grid")
                     # print(f"Line {count}: lang {lang}")
 
-                    if lang not in language_count:
-                        language_count[lang] = 0
+                    if grid_code is not None and lang is not None:
 
-                    language_count[lang] += 1
+                        if grid_code not in language_count:
+                            language_count[grid_code] = {}
+
+                        if lang not in language_count[grid_code]:
+                            language_count[grid_code][lang] = 0
+
+                        language_count[grid_code][lang] += 1
                 
                 # Each process will parse alternate line
                 next_line += size
@@ -355,15 +365,21 @@ def print_report(gathered_count: dict):
     print("===== Report =====")
     total_count = {}
     for data in gathered_count:
-        for lang in data:
-            val = data[lang]
-            if lang not in total_count:
-                total_count[lang] = 0
+        for grid in data:
+            if grid not in total_count:
+                total_count[grid] = {}
 
-            total_count[lang] += val
+            lang_count = data[grid]
 
-    for lang in total_count:
-        print(f"{lang}: {total_count[lang]}")
+            for lang in lang_count:
+                val = lang_count[lang]
+                if lang not in total_count[grid]:
+                    total_count[grid][lang] = 0
+
+                total_count[grid][lang] += val
+
+    for grid in total_count:
+        print(f"{grid}: {total_count[grid]}")
 
 
 def read_config(comm, rank: int, size: int, filename: str) -> dict:
@@ -449,9 +465,13 @@ def read_twitter_obj(line: str, syd_grids: dict, lang_mapper: dict) -> Optional[
     except AttributeError:
         return None
 
-    iso_lang = obj.get("doc", {}).get("metadata", {}).get("iso_language_code")
-    language = lang_mapper.get(iso_lang)
+    iso_lang = obj.get("doc", {}).get("lang")
 
+    if iso_lang == LANG_CODE_UNDEFINED:
+        return None
+
+    language = lang_mapper.get(iso_lang)
+    
     if language is None:
         print(f"ERROR: unknown language code {iso_lang}")
         return None
