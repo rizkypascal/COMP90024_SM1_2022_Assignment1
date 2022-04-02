@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=2
 #SBATCH --ntasks=8
+#SBATCH --ntasks-per-node=4
 
 dir=/home/kesumadewij/assignment1
 
