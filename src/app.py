@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import argparse
 
@@ -10,6 +9,80 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 LANG_PATH = os.path.join(current_dir, "..", "data", "language.json")
 
 LANG_CODE_UNDEFINED = "und"
+
+
+def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
+    """Main function to identify grid of a location point in a Tweet.
+
+    Args:
+        twitter_file (str): path to twitter json file
+        grid_file (str): path to grid json file
+        lang_map_file (str): path to language map file
+    """
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    start = MPI.Wtime()
+
+    config = read_config(comm)
+
+    grids = load_grids(grid_file)
+
+    with open(lang_map_file, "r") as f:
+        lang_mapper = json.load(f)
+
+    line_start = config.get("line_start")
+
+    # Example format of the variable language_count 
+    # {
+    #     "A1": {
+    #         "english": 10,
+    #         "french": 5
+    #     },
+    #     "A2": {
+    #         "chinese": 10,
+    #         "french": 1,
+    #         "english": 100
+    #     }
+    # }
+    language_count = {}
+    with open(twitter_file, "r") as f:
+        count = 1
+        next_line = line_start
+
+        for line in f:
+            
+            if count == next_line:
+                obj = read_twitter_obj(line, grids, lang_mapper)
+                if obj is not None:
+                    lang = obj.get("language")
+                    grid_code = obj.get("grid")
+
+                    if grid_code is not None and lang is not None:
+
+                        if grid_code not in language_count:
+                            language_count[grid_code] = {}
+
+                        if lang not in language_count[grid_code]:
+                            language_count[grid_code][lang] = 0
+
+                        language_count[grid_code][lang] += 1
+                
+                # Each process will parse alternate line
+                next_line += size
+
+            count += 1
+
+    combined = comm.gather(language_count)
+
+    if rank == 0:
+        sorted_count = count_and_sort(combined)
+        print_report(sorted_count)
+        print(f"Elapsed time: {MPI.Wtime() - start} seconds")
+        print("----------------------------------------------------------------------")
+    else:
+        print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
+
 
 def simplify_coordinates(coordinates: list) -> dict:
     """
@@ -73,79 +146,6 @@ def load_grids(grid_file: str) -> dict:
         }
 
     return grids
-
-def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
-    """Main function to identify grid of a location point in a Tweet.
-
-    Args:
-        twitter_file (str): path to twitter json file
-        grid_file (str): path to grid json file
-        lang_map_file (str): path to language map file
-    """
-    comm = MPI.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
-    start = MPI.Wtime()
-
-    config = read_config(comm, rank, size, twitter_file)
-
-    syd_grids = load_grids(grid_file)
-
-    with open(lang_map_file, "r") as f:
-        lang_mapper = json.load(f)
-
-    line_start = config.get("line_start")
-    num_rows = config.get("num_rows")
-
-    # Example format of the variable language_count 
-    # {
-    #     "A1": {
-    #         "english": 10,
-    #         "french": 5
-    #     },
-    #     "A2": {
-    #         "chinese": 10,
-    #         "french": 1,
-    #         "english": 100
-    #     }
-    # }
-    language_count = {}
-    with open(twitter_file, "r") as f:
-        count = 1
-        next_line = line_start
-
-        for line in f:
-            
-            if count == next_line:
-                obj = read_twitter_obj(line, syd_grids, lang_mapper)
-                if obj is not None:
-                    lang = obj.get("language")
-                    grid_code = obj.get("grid")
-
-                    if grid_code is not None and lang is not None:
-
-                        if grid_code not in language_count:
-                            language_count[grid_code] = {}
-
-                        if lang not in language_count[grid_code]:
-                            language_count[grid_code][lang] = 0
-
-                        language_count[grid_code][lang] += 1
-                
-                # Each process will parse alternate line
-                next_line += size
-
-            count += 1
-
-    combined = comm.gather(language_count)
-
-    if rank == 0:
-        sorted_count = count_and_sort(combined)
-        print_report(sorted_count)
-        print(f"Elapsed time: {MPI.Wtime() - start} seconds")
-        print("----------------------------------------------------------------------")
-    else:
-        print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
 
 
 def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
@@ -222,10 +222,17 @@ def count_and_sort(gathered_count: List[dict]) -> dict:
 
                 total_count[grid][lang] += val
 
+    # Sort the result of each grid by most language count and then by language name alphabetically
     sorted_count = {}
     for grid in total_count:
-        sorted_count[grid] = {k: v for k, v in sorted(total_count[grid].items(), key=lambda item: item[1], reverse=True)}
+        # sort by language alphabetically
+        sorted_count[grid] = {k: v for k, v in sorted(total_count[grid].items(), key= lambda item: item[0])}
 
+        # Sort by most language count
+        sorted_count[grid] = {k: v for k, v in sorted(sorted_count[grid].items(), key=lambda item: item[1], reverse=True)}
+
+
+    # Sort by grid name
     sorted_count = {k: v for k, v in sorted(sorted_count.items(), key=lambda item: item[0])}
 
     overall_count = {}
@@ -267,47 +274,32 @@ def print_report(summary: dict):
 
     print("----------------------------------------------------------------------")
 
-def read_config(comm, rank: int, size: int, filename: str) -> dict:
+def read_config(comm) -> dict:
     """Read the config for this process.
 
     Args:
-        comm (_type_): _description_
-        rank (int): _description_
-        size (int): _description_
-        filename (str): _description_
-
-    Raises:
-        Exception: _description_
+        comm (_type_): MPI comm
 
     Returns:
-        dict: a dictionary consists of 
+        dict: a dictionary consists of information each process needs to run
     """
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+
     if rank == 0:
-        with open(filename) as f:
-            first_line = f.readline().strip()
+        if size == 1:
+            config = {
+                "line_start": 2,
+            }
+        else:
+            line_start = 2
 
-            # count total number of rows
-            regex = r'"total_rows":(\d+)'
-            m = re.search(regex, first_line)
-            if m and len(m.groups()) >= 1:
-                num_rows = int(m.group(1)) - 1
-            else:
-                raise Exception("Invalid input json file. Number of rows not found.")
-
-            if size == 1:
+            # We want each process to parse alternate line
+            for i in range(size):
                 config = {
-                    "line_start": 2, 
-                    "num_rows": num_rows
+                    "line_start": line_start + i, 
                 }
-            else:
-                line_start = 2
-
-                for i in range(size):
-                    config = {
-                        "line_start": line_start + i, 
-                        "num_rows": num_rows
-                    }
-                    comm.send(config, dest=i)
+                comm.send(config, dest=i)
 
     if size > 1:
         config = comm.recv(source=0)
