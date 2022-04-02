@@ -1,5 +1,7 @@
 import os
+import time
 import json
+import csv
 import argparse
 
 from typing import Optional, List
@@ -204,7 +206,6 @@ def row_num_to_row_name(row_num: int):
     return col_name[::-1]
 
 
-
 def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
     """To allocate tweet coordinates into grid.
 
@@ -313,23 +314,33 @@ def print_report(summary: dict, start_time: float):
     top_count = 10
     cols = {"Cell": 4, "#Total Tweets": 14, "#Number of Languages Used": 26, "#Top 10 Languages & #Tweets": 28}
     
+    timestamp = int(time.time())
+    output_file = f"language_count_{timestamp}.txt"
+
     header = [name.center(width) for name, width in cols.items()]
 
-    print("------------------------------- Report -------------------------------")
-    print(delimiter.join(header))
-    for grid in summary:
-        col_widths = [w for w in cols.values()]
-        lang_summary = [f"{lang}-{count}" for lang, count in summary[grid]["languages"].items()]
-        row = [
-            grid.ljust(col_widths[0]),
-            str(summary[grid]["total_tweets"]).ljust(col_widths[1]),
-            str(summary[grid]["total_lang"]).ljust(col_widths[2]),
-            ", ".join(lang_summary[:top_count]).ljust(col_widths[3])
-        ]
+    csv_writer = None
+    with open(output_file, "w") as f:
+        csv_writer = csv.writer(f, delimiter=delimiter)
+        csv_writer.writerow(header)
 
-        print(delimiter.join(row))
+        print("------------------------------- Report -------------------------------")
+        print(delimiter.join(header))
+        for grid in summary:
+            col_widths = [w for w in cols.values()]
+            lang_summary = [f"{lang}-{count}" for lang, count in summary[grid]["languages"].items()]
+            row = [
+                grid.ljust(col_widths[0]),
+                str(summary[grid]["total_tweets"]).ljust(col_widths[1]),
+                str(summary[grid]["total_lang"]).ljust(col_widths[2]),
+                ", ".join(lang_summary[:top_count]).ljust(col_widths[3])
+            ]
+
+            print(delimiter.join(row))
+            csv_writer.writerow(row)
 
     print("----------------------------------------------------------------------")
+    print(f"Output file: {output_file}")
     print(f"Elapsed time: {MPI.Wtime() - start_time} seconds")
     print("----------------------------------------------------------------------")
 
