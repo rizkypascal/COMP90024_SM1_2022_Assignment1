@@ -91,9 +91,6 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     line_start = config.get("line_start")
     num_rows = config.get("num_rows")
 
-    # print(f"Rank: {rank}, Start at line: {line_start}")
-
-    # TODO: the final version of language_count will look something like
     # {
     #     "A1": {
     #         "english": 10,
@@ -113,12 +110,10 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
         for line in f:
             
             if count == next_line:
-                # TODO: handle language count per grid
                 obj = read_twitter_obj(line, syd_grids, lang_mapper)
                 if obj is not None:
                     lang = obj.get("language")
                     grid_code = obj.get("grid")
-                    # print(f"Line {count}: lang {lang}")
 
                     if grid_code is not None and lang is not None:
 
@@ -144,7 +139,6 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     else:
         print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
 
-    # print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
 
 def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
     """To allocate tweet coordinates into grid.
@@ -177,7 +171,7 @@ def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
 
             return grid_id
 
-    # TODO handle points sitting on left most grid border and bottom most grid border
+    # Handle points sitting on left most grid border and bottom most grid border
     if tweet_point["x"] == grid_min_x:
         for grid_id in grids:
             if tweet_point["x"] == grid_coordinates["x1"] \
@@ -194,234 +188,6 @@ def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
 
                 return grid_id
 
-
-def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
-    #TODO modularise the logic of cell assignation
-    """To allocate tweet coordinates into grid
-
-    These rules must be applied whether the tweets are assignable to the cell or not:
-        - tweet(x1,x2))(y1,y2) inclusive in cell(x1, x2)(y1, y2) (in the cell) (cond1)
-        = tweet(x2) is not in cell coordinates, others all in cell coordinates (overlapping y axis) (cond2)
-        - tweet(x2) is not in cell coordinates, others all in cell coordinates (overlapping x axis) (cond3)
-        - at least one x axis and y axis (2 points) must be exist in cell, with conditions: (cond4)
-            - if only intersect with one cell, then assign that cell
-            - if intersect with 2 cells, then check which axis on the same position,
-              then take cell with another axis on min value (eg: exist in A1 and A2 with same y axis value, therefore take the x axis min value)
-    """
-    rows = "ABCD"
-    columns = "1234"
-    tweet_coordinates = simplify_coordinates(coordinates)
-
-    for i in syd_grids:
-        # cond1
-        if (tweet_coordinates["x1"] >= syd_grids[i]["x1"] and tweet_coordinates["x1"] < syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] >= syd_grids[i]["y1"] and tweet_coordinates["y1"] < syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] > syd_grids[i]["y1"] and tweet_coordinates["y2"] <= syd_grids[i]["y2"]):
-            return i
-
-        # cond2
-        elif (tweet_coordinates["x1"] >= syd_grids[i]["x1"] and tweet_coordinates["x1"] < syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] <= syd_grids[i]["x1"] or tweet_coordinates["x2"] > syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] >= syd_grids[i]["y1"] and tweet_coordinates["y1"] < syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] > syd_grids[i]["y1"] and tweet_coordinates["y2"] <= syd_grids[i]["y2"]):
-            column = i[1]
-            next_column = columns.find(column) + 1
-            column_in_cell = 1
-
-            if next_column > len(columns) - 1:
-                column_in_cell = -1
-            
-            if column_in_cell == -1:
-                return i
-            else:
-                next_cell = i[0] + columns[next_column]
-                next_x2 = syd_grids[next_cell]["x2"]
-                if tweet_coordinates["x2"] <= next_x2:
-                    return i
-
-        # cond3
-        elif (tweet_coordinates["x1"] >= syd_grids[i]["x1"] and tweet_coordinates["x1"] < syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] >= syd_grids[i]["y1"] and tweet_coordinates["y1"] < syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] <= syd_grids[i]["y1"] or tweet_coordinates["y2"] > syd_grids[i]["y2"]):
-            row = i[0]
-            prev_row = rows.find(row) - 1
-            row_in_cell = 1
-
-            if prev_row < 0:
-                row_in_cell = -1
-            
-            if row_in_cell == -1:
-                return i
-            else:
-                prev_cell = rows[prev_row] + i[1]
-                prev_y2 = syd_grids[prev_cell]["y2"]
-                if tweet_coordinates["y2"] <= prev_y2:
-                    return i
-
-        # cond3 to check if lowest x axis exist
-        elif (tweet_coordinates["x1"] < syd_grids[i]["x1"] or tweet_coordinates["x1"] >= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] >= syd_grids[i]["y1"] and tweet_coordinates["y1"] < syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] > syd_grids[i]["y1"] and tweet_coordinates["y2"] <= syd_grids[i]["y2"]):
-            column = i[1]
-            prev_column = columns.find(column) - 1
-            column_in_cell = 1
-
-            if prev_column < 0:
-                column_in_cell = -1
-            
-            if column_in_cell == -1:
-                return i
-            else:
-                prev_cell = i[0] + columns[prev_column]
-                prev_x1 = syd_grids[prev_cell]["x1"]
-                if tweet_coordinates["x1"] >= prev_x1:
-                    return prev_cell
-
-        # cond3 to check if lowest y axis exist
-        elif (tweet_coordinates["x1"] >= syd_grids[i]["x1"] and tweet_coordinates["x1"] < syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] < syd_grids[i]["y1"] or tweet_coordinates["y1"] >= syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] > syd_grids[i]["y1"] and tweet_coordinates["y2"] <= syd_grids[i]["y2"]):
-            row = i[0]
-            next_row = rows.find(row) + 1
-            row_in_cell = 1
-
-            if next_row > len(rows) - 1:
-                row_in_cell = -1
-            
-            if row_in_cell == -1:
-                return i
-            else:
-                next_cell = rows[next_row] + i[1]
-                next_y1 = syd_grids[next_cell]["y1"]
-                if tweet_coordinates["y1"] >= next_y1:
-                    return next_cell
-
-        # cond4 with xmin and ymax in cell
-        elif (tweet_coordinates["x1"] < syd_grids[i]["x1"] and tweet_coordinates["x1"] >= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] <= syd_grids[i]["x1"] or tweet_coordinates["x2"] > syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] < syd_grids[i]["y1"] or tweet_coordinates["y1"] >= syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] > syd_grids[i]["y1"] and tweet_coordinates["y2"] <= syd_grids[i]["y2"]):
-            row = i[0]
-            column = i[1]
-            next_row = rows.find(row) + 1
-            next_column = columns.find(column) + 1
-
-            column_in_cell = row_in_cell = 1
-
-            if next_column > len(columns) - 1:
-                column_in_cell = -1
-            if next_row > len(rows) - 1:
-                row_in_cell = -1
-            
-            if row_in_cell == -1 and column_in_cell == -1:
-                return i
-            elif row_in_cell == -1 and column_in_cell != -1:
-                next_cell = i[0] + columns[next_column]
-                next_x2 = syd_grids[next_cell]["x2"]
-                if tweet_coordinates["x2"] <= next_x2:
-                    return i
-            elif row_in_cell != -1 and column_in_cell == -1:
-                next_cell = rows[next_row] + i[1]
-                next_y1 = syd_grids[next_cell]["y1"]
-                if tweet_coordinates["y1"] >= next_y1:
-                    return next_cell
-
-        # cond4 with xmin and ymin in cell
-        elif (tweet_coordinates["x1"] >= syd_grids[i]["x1"] and tweet_coordinates["x1"] < syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] <= syd_grids[i]["x1"] or tweet_coordinates["x2"] > syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] < syd_grids[i]["y1"] and tweet_coordinates["y1"] >= syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] <= syd_grids[i]["y1"] or tweet_coordinates["y2"] > syd_grids[i]["y2"]):
-            row = i[0]
-            column = i[1]
-            prev_row = rows.find(row) - 1
-            next_column = columns.find(column) + 1
-
-            column_in_cell = row_in_cell = 1
-
-            if next_column > len(columns) - 1:
-                column_in_cell = -1
-            if prev_row < 0:
-                row_in_cell = -1
-            
-            if row_in_cell == -1 and column_in_cell == -1:
-                return i
-            elif row_in_cell == -1 and column_in_cell != -1:
-                next_cell = i[0] + columns[next_column]
-                next_x2 = syd_grids[next_cell]["x2"]
-                if tweet_coordinates["x2"] <= next_x2:
-                    return i
-            elif row_in_cell != -1 and column_in_cell == -1:
-                prev_cell = rows[prev_row] + i[1]
-                prev_y2 = syd_grids[prev_cell]["y2"]
-                if tweet_coordinates["y2"] <= prev_y2:
-                    return i
-
-        # cond4 with xmax and ymin in cell
-        elif (tweet_coordinates["x1"] < syd_grids[i]["x1"] or tweet_coordinates["x1"] >= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] < syd_grids[i]["y1"] and tweet_coordinates["y1"] >= syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] <= syd_grids[i]["y1"] or tweet_coordinates["y2"] > syd_grids[i]["y2"]):
-            row = i[0]
-            column = i[1]
-            prev_row = rows.find(row) - 1
-            prev_column = columns.find(column) - 1
-
-            column_in_cell = row_in_cell = 1
-
-            if prev_column < 0:
-                column_in_cell = -1
-            if prev_row < 0:
-                row_in_cell = -1
-            
-            if row_in_cell == -1 and column_in_cell == -1:
-                return i
-            elif row_in_cell == -1 and column_in_cell != -1:
-                prev_cell = i[0] + columns[prev_column]
-                prev_x1 = syd_grids[prev_cell]["x1"]
-                if tweet_coordinates["x1"] >= prev_x1:
-                    return prev_cell
-            elif row_in_cell != -1 and column_in_cell == -1:
-                prev_cell = rows[prev_row] + i[1]
-                prev_y2 = syd_grids[prev_cell]["y2"]
-                if tweet_coordinates["y2"] <= prev_y2:
-                    return i
-
-        # cond4 with xmax and ymax in cell
-        elif (tweet_coordinates["x1"] < syd_grids[i]["x1"] or tweet_coordinates["x1"] >= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["x2"] > syd_grids[i]["x1"] and tweet_coordinates["x2"] <= syd_grids[i]["x2"]) \
-        and (tweet_coordinates["y1"] < syd_grids[i]["y1"] or tweet_coordinates["y1"] >= syd_grids[i]["y2"]) \
-        and (tweet_coordinates["y2"] > syd_grids[i]["y1"] and tweet_coordinates["y2"] <= syd_grids[i]["y2"]):
-            row = i[0]
-            column = i[1]
-            next_row = rows.find(row) + 1
-            prev_column = columns.find(column) - 1
-
-            column_in_cell = row_in_cell = 1
-
-            if prev_column < 0:
-                column_in_cell = -1
-            if next_row > len(rows) - 1:
-                row_in_cell = -1
-            
-            if row_in_cell == -1 and column_in_cell == -1:
-                return i
-            elif row_in_cell == -1 and column_in_cell != -1:
-
-                prev_cell = i[0] + columns[prev_column]
-                prev_x1 = syd_grids[prev_cell]["x1"]
-                if tweet_coordinates["x1"] >= prev_x1:
-                    return prev_cell
-            elif row_in_cell != -1 and column_in_cell == -1:
-                next_cell = rows[next_row] + i[1]
-                next_y1 = syd_grids[next_cell]["y1"]
-                if tweet_coordinates["y1"] >= next_y1:
-                    return next_cell
-
-    return None
 
 def count_and_sort(gathered_count: dict):
     total_count = {}
@@ -559,7 +325,6 @@ def read_twitter_obj(line: str, grids: dict, lang_mapper: dict) -> Optional[dict
     obj = json.loads(json_str)
 
     try:
-        # tweet_coordinates = obj.get("doc", {}).get("place", {}).get("bounding_box", {}).get("coordinates")
         tweet_coordinates = obj.get("doc", {}).get("coordinates", {}).get("coordinates")
         tweet_point = {
             "x": tweet_coordinates[0],
@@ -582,6 +347,7 @@ def read_twitter_obj(line: str, grids: dict, lang_mapper: dict) -> Optional[dict
     # grid = allocate_tweet_to_grid(grids, tweet_coordinates)
     grid = identify_grid(grids, tweet_point)
     if language is not None and grid is not None:
+
         return {
             "language": language,
             "grid": grid
