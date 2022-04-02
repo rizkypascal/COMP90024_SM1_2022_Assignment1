@@ -20,31 +20,53 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
         lang_map_file (str): path to language map file
     """
     comm = MPI.COMM_WORLD
-    size = comm.Get_size()
     rank = comm.Get_rank()
     start = MPI.Wtime()
 
-    config = read_config(comm)
+    config = read_config(comm, grid_file, lang_map_file)
 
-    grids = load_grids(grid_file)
+    # Main logic to process twitter file
+    language_count = read_twitter_file(twitter_file, config)
 
-    with open(lang_map_file, "r") as f:
-        lang_mapper = json.load(f)
+    # Combine results from all processes
+    combined = comm.gather(language_count)
 
+    if rank == 0:
+        sorted_count = count_and_sort(combined)
+        print_report(sorted_count, start)
+    else:
+        print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
+
+
+def read_twitter_file(twitter_file: str, config: dict) -> dict:
+    """Read Twitter json file and process lines according to config.
+
+    Args:
+        twitter_file (str): file path to Twiter json file
+        config (dict): instructions on how to read the file. it consists of line start and step to skip.
+        grids (dict): a dictionary of grids to be mapped to
+        lang_mapper (dict): a dictionary to map language code to language name
+
+    Returns:
+        dict: a dictionary of language count keyd by grid name
+        Example format of the variable language_count 
+        {
+            "A1": {
+                "english": 10,
+                "french": 5
+            },
+            "A2": {
+                "chinese": 10,
+                "french": 1,
+                "english": 100
+            }
+        }
+    """
     line_start = config.get("line_start")
+    step = config.get("step")
+    grids = config.get("grids")
+    lang_map = config.get("lang_map")
 
-    # Example format of the variable language_count 
-    # {
-    #     "A1": {
-    #         "english": 10,
-    #         "french": 5
-    #     },
-    #     "A2": {
-    #         "chinese": 10,
-    #         "french": 1,
-    #         "english": 100
-    #     }
-    # }
     language_count = {}
     with open(twitter_file, "r") as f:
         count = 1
@@ -53,7 +75,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
         for line in f:
             
             if count == next_line:
-                obj = read_twitter_obj(line, grids, lang_mapper)
+                obj = read_twitter_obj(line, grids, lang_map)
                 if obj is not None:
                     lang = obj.get("language")
                     grid_code = obj.get("grid")
@@ -69,19 +91,11 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
                         language_count[grid_code][lang] += 1
                 
                 # Each process will parse alternate line
-                next_line += size
+                next_line += step
 
             count += 1
 
-    combined = comm.gather(language_count)
-
-    if rank == 0:
-        sorted_count = count_and_sort(combined)
-        print_report(sorted_count)
-        print(f"Elapsed time: {MPI.Wtime() - start} seconds")
-        print("----------------------------------------------------------------------")
-    else:
-        print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
+    return language_count
 
 
 def simplify_coordinates(coordinates: list) -> dict:
@@ -131,8 +145,6 @@ def load_grids(grid_file: str) -> dict:
 
     for data in grid.get("features", []):
         coordinates = simplify_coordinates(data["geometry"]["coordinates"])
-        # grid_id = int(data["properties"]["id"])
-        # grid_name = id_grid.get(grid_id, grid_id)
         min_x = coordinates["x1"]
         min_y = coordinates["y1"]
         if min_y not in grids:
@@ -145,10 +157,11 @@ def load_grids(grid_file: str) -> dict:
             "y2": coordinates["y2"]
         }
 
-    # sort y DESC
+    # sort by x
     for y in grids:
         grids[y] = {k: v for k, v in sorted(grids[y].items(), key=lambda item: item[0])}
 
+    # sort by y DESC
     sorted_grids = {k: v for k, v in sorted(grids.items(), key=lambda item: item[0], reverse=True)}
 
     # Now automatically assign grid name where
@@ -290,7 +303,7 @@ def count_and_sort(gathered_count: List[dict]) -> dict:
     return overall_count
 
 
-def print_report(summary: dict):
+def print_report(summary: dict, start_time: float):
     """Print out the language and tweet count summary per grid
 
     Args:
@@ -317,8 +330,10 @@ def print_report(summary: dict):
         print(delimiter.join(row))
 
     print("----------------------------------------------------------------------")
+    print(f"Elapsed time: {MPI.Wtime() - start_time} seconds")
+    print("----------------------------------------------------------------------")
 
-def read_config(comm) -> dict:
+def read_config(comm, grid_file: str, lang_map_file: str) -> dict:
     """Read the config for this process.
 
     Args:
@@ -331,9 +346,17 @@ def read_config(comm) -> dict:
     rank = comm.Get_rank()
 
     if rank == 0:
+        grids = load_grids(grid_file)
+
+        with open(lang_map_file, "r") as f:
+            lang_mapper = json.load(f)
+
         if size == 1:
             config = {
                 "line_start": 2,
+                "step": 1,
+                "grids": grids,
+                "lang_map": lang_mapper
             }
         else:
             line_start = 2
@@ -342,6 +365,9 @@ def read_config(comm) -> dict:
             for i in range(size):
                 config = {
                     "line_start": line_start + i, 
+                    "step": size,
+                    "grids": grids,
+                    "lang_map": lang_mapper
                 }
                 comm.send(config, dest=i)
 
