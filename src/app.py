@@ -3,7 +3,7 @@ import re
 import json
 import argparse
 
-from typing import Optional
+from typing import Optional, List
 from mpi4py import MPI
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +15,12 @@ def simplify_coordinates(coordinates: list) -> dict:
     """
         To convert polygon coordinates to
         x1(xmin), x2(xmax), y1(ymin), y2(ymax)
+
+    Args:
+        coordinates (list):  A list of grid coordinates that forms a rectangle polygon
+
+    Returns:
+        dict: a dictionary of the grid coordinates keyed by x1, x2, y1, y2
     """
     new_coordinates = {
         "x1": 0.0, "x2": 0.0,
@@ -69,7 +75,7 @@ def load_grids(grid_file: str) -> dict:
     return grids
 
 def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
-    """Main function to 
+    """Main function to identify grid of a location point in a Tweet.
 
     Args:
         twitter_file (str): path to twitter json file
@@ -91,6 +97,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     line_start = config.get("line_start")
     num_rows = config.get("num_rows")
 
+    # Example format of the variable language_count 
     # {
     #     "A1": {
     #         "english": 10,
@@ -136,6 +143,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
         sorted_count = count_and_sort(combined)
         print_report(sorted_count)
         print(f"Elapsed time: {MPI.Wtime() - start} seconds")
+        print("----------------------------------------------------------------------")
     else:
         print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
 
@@ -189,7 +197,16 @@ def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
                 return grid_id
 
 
-def count_and_sort(gathered_count: dict):
+def count_and_sort(gathered_count: List[dict]) -> dict:
+    """Sort and count the total number of tweets and languages in each grid.
+
+    Args:
+        gathered_count (List[dict]):  A list of dictionary where the
+            dictionary is the summary of language count per grid in each process 
+
+    Returns:
+        dict: Dictionary keyed by grid name
+    """
     total_count = {}
     for data in gathered_count:
         for grid in data:
@@ -223,16 +240,20 @@ def count_and_sort(gathered_count: dict):
 
 
 def print_report(summary: dict):
+    """Print out the language and tweet count summary per grid
+
+    Args:
+        summary (dict): language and tweet count summary per grid
+    """
     delimiter = "\t"
     top_count = 10
     cols = {"Cell": 4, "#Total Tweets": 14, "#Number of Languages Used": 26, "#Top 10 Languages & # Tweets": 28}
     
     header = [name.center(width) for name, width in cols.items()]
 
-    print("===== Report =====")
+    print("------------------------------- Report -------------------------------")
     print(delimiter.join(header))
     for grid in summary:
-        # print(f"{grid}: {summary[grid]}")
         col_widths = [w for w in cols.values()]
         lang_summary = [f"{lang}-{count}" for lang, count in summary[grid]["languages"].items()]
         row = [
@@ -244,7 +265,7 @@ def print_report(summary: dict):
 
         print(delimiter.join(row))
 
-    print("==================")
+    print("----------------------------------------------------------------------")
 
 def read_config(comm, rank: int, size: int, filename: str) -> dict:
     """Read the config for this process.
@@ -308,8 +329,7 @@ def read_twitter_obj(line: str, grids: dict, lang_mapper: dict) -> Optional[dict
             }
             Otherwise returns None
     """
-    
-
+    # Parse a line of JSON
     line = line.strip()
     if line.endswith("]}"):
         json_str = line.strip("}").strip("]")
@@ -335,19 +355,20 @@ def read_twitter_obj(line: str, grids: dict, lang_mapper: dict) -> Optional[dict
 
     iso_lang = obj.get("doc", {}).get("lang")
 
+    # Skip undefined language
     if iso_lang == LANG_CODE_UNDEFINED:
         return None
 
+    # Fron language code to language name
     language = lang_mapper.get(iso_lang)
     
     if language is None:
         print(f"ERROR: unknown language code {iso_lang}")
         return None
 
-    # grid = allocate_tweet_to_grid(grids, tweet_coordinates)
+    # Identify if tweet location falls into one of the grids A1, A2, B1, etc
     grid = identify_grid(grids, tweet_point)
     if language is not None and grid is not None:
-
         return {
             "language": language,
             "grid": grid
@@ -356,6 +377,8 @@ def read_twitter_obj(line: str, grids: dict, lang_mapper: dict) -> Optional[dict
         return None
 
 def parse_args():
+    """Parse command line arguments.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", help="File path to the twitter json file", dest="file_path", required=True)
     parser.add_argument("--grid", help="File path to the grid json file", dest="grid_file_path", required=True)
