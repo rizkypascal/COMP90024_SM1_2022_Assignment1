@@ -36,7 +36,15 @@ def simplify_coordinates(coordinates: list) -> dict:
     
     return new_coordinates
 
-def grid(grid_file: str) -> dict:
+def load_grids(grid_file: str) -> dict:
+    """Read json file containing grid information.
+
+    Args:
+        grid_file (str): file path of the json grid file
+
+    Returns:
+        dict: a dictionary of the grid coordinates keyed by grid name
+    """
     id_grid = {
         9: "A1", 10: "B1", 11: "C1", 12: "D1",
         13: "A2", 14: "B2", 15: "C2", 16: "D2",
@@ -44,21 +52,21 @@ def grid(grid_file: str) -> dict:
         21: "A4", 22: "B4", 23: "C4", 24: "D4"
     }
 
-    syd_grids = {}
+    grids = {}
 
     with open(grid_file, "r") as f:
         grid = json.load(f)
 
     for data in grid["features"]:
         coordinates = simplify_coordinates(data["geometry"]["coordinates"])
-        syd_grids[id_grid[int(data["properties"]["id"])]] = {
+        grids[id_grid[int(data["properties"]["id"])]] = {
             "x1": coordinates["x1"],
             "x2": coordinates["x2"],
             "y1": coordinates["y1"],
             "y2": coordinates["y2"]
         }
 
-    return syd_grids
+    return grids
 
 def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     """Main function to 
@@ -75,7 +83,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
 
     config = read_config(comm, rank, size, twitter_file)
 
-    syd_grids = grid(grid_file)
+    syd_grids = load_grids(grid_file)
 
     with open(lang_map_file, "r") as f:
         lang_mapper = json.load(f)
@@ -101,6 +109,7 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
     with open(twitter_file, "r") as f:
         count = 1
         next_line = line_start
+
         for line in f:
             
             if count == next_line:
@@ -134,6 +143,56 @@ def run_app(twitter_file: str, grid_file: str, lang_map_file: str):
         print(f"Elapsed time: {MPI.Wtime() - start} seconds")
     else:
         print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
+
+    # print(f"Rank {rank}: completed task in {MPI.Wtime() - start} seconds")
+
+def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
+    """To allocate tweet coordinates into grid.
+
+    Args:
+        grids (dict): Coordinates of grids keyed by its grid name 
+        tweet_point (list): a point to represent the coordinates where a tweet is tweeted from
+
+    Returns:
+        Optional[str]: grid name of where a Tweet is found or None if it is not in any of the grids.
+    """
+    grid_min_x = None
+    grid_min_y = None
+    for grid_id in grids:
+        grid_coordinates = grids[grid_id]
+
+        # Identify the left most grid coordinate
+        if grid_min_x is None or grid_coordinates["x1"] < grid_min_x:
+            grid_min_x = grid_coordinates["x1"]
+
+         # Identify the bottom most grid coordinate
+        if grid_min_y is None or grid_coordinates["y1"] < grid_min_y:
+            grid_min_y = grid_coordinates["y1"]
+
+
+        if tweet_point["x"] > grid_coordinates["x1"] \
+            and tweet_point["x"] <= grid_coordinates["x2"] \
+            and tweet_point["y"] >= grid_coordinates["y1"] \
+            and tweet_point["y"] < grid_coordinates["y2"]:
+
+            return grid_id
+
+    # TODO handle points sitting on left most grid border and bottom most grid border
+    if tweet_point["x"] == grid_min_x:
+        for grid_id in grids:
+            if tweet_point["x"] == grid_coordinates["x1"] \
+                and tweet_point["y"] >= grid_coordinates["y1"] \
+                and tweet_point["y"] < grid_coordinates["y2"]:
+
+                return grid_id
+
+    if tweet_point["y"] == grid_min_y:
+        for grid_id in grids:
+            if tweet_point["y"] == grid_coordinates["y1"] \
+                and tweet_point["x"] > grid_coordinates["x1"] \
+                and tweet_point["x"] <= grid_coordinates["x2"]:
+
+                return grid_id
 
 
 def allocate_tweet_to_grid(syd_grids: dict, coordinates: list) -> Optional[str]:
@@ -468,7 +527,7 @@ def read_config(comm, rank: int, size: int, filename: str) -> dict:
 
     return config
 
-def read_twitter_obj(line: str, syd_grids: dict, lang_mapper: dict) -> Optional[dict]:
+def read_twitter_obj(line: str, grids: dict, lang_mapper: dict) -> Optional[dict]:
     """Read each line of Twitter json file and return a dict object with relevant metadata.
 
     Args:
@@ -500,7 +559,12 @@ def read_twitter_obj(line: str, syd_grids: dict, lang_mapper: dict) -> Optional[
     obj = json.loads(json_str)
 
     try:
-        tweet_coordinates = obj.get("doc", {}).get("place", {}).get("bounding_box", {}).get("coordinates")
+        # tweet_coordinates = obj.get("doc", {}).get("place", {}).get("bounding_box", {}).get("coordinates")
+        tweet_coordinates = obj.get("doc", {}).get("coordinates", {}).get("coordinates")
+        tweet_point = {
+            "x": tweet_coordinates[0],
+            "y": tweet_coordinates[1]
+        }
     except AttributeError:
         return None
 
@@ -515,8 +579,8 @@ def read_twitter_obj(line: str, syd_grids: dict, lang_mapper: dict) -> Optional[
         print(f"ERROR: unknown language code {iso_lang}")
         return None
 
-    # TODO: convert coordinates to grid A1, A2, C2, etc
-    grid = allocate_tweet_to_grid(syd_grids, tweet_coordinates)
+    # grid = allocate_tweet_to_grid(grids, tweet_coordinates)
+    grid = identify_grid(grids, tweet_point)
     if language is not None and grid is not None:
         return {
             "language": language,
