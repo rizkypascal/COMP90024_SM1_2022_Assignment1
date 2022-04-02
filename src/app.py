@@ -124,28 +124,72 @@ def load_grids(grid_file: str) -> dict:
     Returns:
         dict: a dictionary of the grid coordinates keyed by grid name
     """
-    id_grid = {
-        9: "A1", 10: "B1", 11: "C1", 12: "D1",
-        13: "A2", 14: "B2", 15: "C2", 16: "D2",
-        17: "A3", 18: "B3", 19: "C3", 20: "D3",
-        21: "A4", 22: "B4", 23: "C4", 24: "D4"
-    }
-
     grids = {}
 
     with open(grid_file, "r") as f:
         grid = json.load(f)
 
-    for data in grid["features"]:
+    for data in grid.get("features", []):
         coordinates = simplify_coordinates(data["geometry"]["coordinates"])
-        grids[id_grid[int(data["properties"]["id"])]] = {
+        # grid_id = int(data["properties"]["id"])
+        # grid_name = id_grid.get(grid_id, grid_id)
+        min_x = coordinates["x1"]
+        min_y = coordinates["y1"]
+        if min_y not in grids:
+            grids[min_y] = {}
+
+        grids[min_y][min_x] = {
             "x1": coordinates["x1"],
             "x2": coordinates["x2"],
             "y1": coordinates["y1"],
             "y2": coordinates["y2"]
         }
 
-    return grids
+    # sort y DESC
+    for y in grids:
+        grids[y] = {k: v for k, v in sorted(grids[y].items(), key=lambda item: item[0])}
+
+    sorted_grids = {k: v for k, v in sorted(grids.items(), key=lambda item: item[0], reverse=True)}
+
+    # Now automatically assign grid name where
+    # the smallest row starts with A and 
+    # the smallest column starts with 1
+    grids_by_name = {}
+    row_count = 1
+    for row in sorted_grids:
+        row_name = row_num_to_row_name(row_count)
+
+        col_count = 1
+        for col in sorted_grids[row]:
+            grid_name = f"{row_name}{col_count}"
+            grids_by_name[grid_name] = sorted_grids[row][col]
+
+            col_count += 1
+
+        row_count += 1
+
+    return grids_by_name
+
+def row_num_to_row_name(row_num: int):
+    """convert int to letter(s) that represent column name.
+
+    Args:
+        row_num (int): starts from 0
+    """
+    first_letter = 'A'
+    first_ascii = ord(first_letter)
+    num_unique_letters = 26
+
+    # initialize output string as empty
+    col_name = ''
+ 
+    while row_num > 0:
+        index = int((row_num - 1) % num_unique_letters)
+        col_name += chr(index + first_ascii)
+        row_num = (row_num - 1) // num_unique_letters
+ 
+    return col_name[::-1]
+
 
 
 def identify_grid(grids: dict, tweet_point: list) -> Optional[str]:
@@ -254,7 +298,7 @@ def print_report(summary: dict):
     """
     delimiter = "\t"
     top_count = 10
-    cols = {"Cell": 4, "#Total Tweets": 14, "#Number of Languages Used": 26, "#Top 10 Languages & # Tweets": 28}
+    cols = {"Cell": 4, "#Total Tweets": 14, "#Number of Languages Used": 26, "#Top 10 Languages & #Tweets": 28}
     
     header = [name.center(width) for name, width in cols.items()]
 
@@ -400,4 +444,4 @@ if __name__ == "__main__":
         print(f"ERROR: Language file {lang_map_file_path} does not exist.")
         exit(1)
     
-    run_app(options.twitter_file_path, grid_file_path, lang_map_file_path)
+    run_app(twitter_file_path, grid_file_path, lang_map_file_path)
