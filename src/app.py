@@ -372,7 +372,7 @@ def parse_args():
     """Parse command line arguments.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", help="File path to the twitter json file", dest="file_path", required=True)
+    parser.add_argument("-f", help="File path to the twitter json file", dest="twitter_file_path", required=True)
     parser.add_argument("--grid", help="File path to the grid json file", dest="grid_file_path", required=True)
     parser.add_argument(
         "--lang-map", help="File path to a json file that provides language iso code to name map", 
@@ -383,5 +383,21 @@ def parse_args():
 
 if __name__ == "__main__":
     options = parse_args()
+
+    twitter_file_path = os.path.abspath(options.twitter_file_path)
+    grid_file_path = os.path.abspath(options.grid_file_path)
+    lang_map_file_path = os.path.abspath(options.lang_map_file_path)
+
+    if not os.path.exists(twitter_file_path):
+        print(f"ERROR: Grid file {twitter_file_path} does not exist.")
+        exit(1)
+
+    if not os.path.exists(grid_file_path):
+        print(f"ERROR: Grid file {grid_file_path} does not exist.")
+        exit(1)
+
+    if not os.path.exists(lang_map_file_path):
+        print(f"ERROR: Language file {lang_map_file_path} does not exist.")
+        exit(1)
     
-    run_app(options.file_path, options.grid_file_path, options.lang_map_file_path)
+    run_app(options.twitter_file_path, grid_file_path, lang_map_file_path)
