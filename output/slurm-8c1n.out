@@ -1,0 +1,59 @@
+Rank 6: completed task in 112.99057182110846 seconds
+Rank 2: completed task in 113.7855220399797 seconds
+Rank 4: completed task in 114.3562933318317 seconds
+Rank 1: completed task in 115.64932951144874 seconds
+Rank 7: completed task in 115.72857600077987 seconds
+Rank 5: completed task in 115.8151099383831 seconds
+Rank 3: completed task in 115.85190911591053 seconds
+------------------------------- Report -------------------------------
+Cell	#Total Tweets 	#Number of Languages Used 	#Top 10 Languages & #Tweets 
+A1  	21            	2                         	English-20, French-1        
+A2  	22            	2                         	English-21, Japanese-1      
+A3  	11            	3                         	English-9, Indonesian-1, Thai-1
+A4  	85            	4                         	English-80, French-2, Turkish-2, Spanish-1
+B1  	184           	5                         	English-179, Tagalog-2, Catalan-1, Danish-1, Haitian-1
+B2  	504           	12                        	English-482, Chinese-5, Italian-4, Japanese-3, German-2, Tagalog-2, Estonian-1, Finnish-1, Hindi-1, Indonesian-1
+B3  	641           	12                        	English-610, Chinese-5, Indonesian-5, Japanese-5, Romanian-4, Portuguese-3, Spanish-3, Catalan-2, Danish-1, German-1
+B4  	469           	10                        	English-450, Japanese-8, Portuguese-3, Italian-2, Dutch-1, French-1, German-1, Indonesian-1, Spanish-1, Turkish-1
+C1  	46            	4                         	English-42, French-2, German-1, Haitian-1
+C2  	95            	6                         	English-84, Indonesian-6, Spanish-2, Chinese-1, French-1, Romanian-1
+C3  	4480          	30                        	English-4186, Japanese-56, Spanish-42, Indonesian-32, Catalan-24, Portuguese-15, Chinese-13, Tagalog-13, German-12, Romanian-11
+C4  	962           	21                        	English-888, Haitian-17, Indonesian-6, Japanese-6, Romanian-6, Estonian-5, Italian-5, Spanish-5, Tagalog-4, Catalan-3
+D1  	97            	6                         	English-90, Portuguese-2, Welsh-2, Catalan-1, Lithuanian-1, Spanish-1
+D2  	33            	2                         	English-31, Spanish-2       
+D3  	160           	7                         	English-154, Catalan-1, Estonian-1, Portuguese-1, Spanish-1, Tagalog-1, Thai-1
+D4  	3             	1                         	English-3                   
+----------------------------------------------------------------------
+Output file: language_count_1648904985.txt
+Elapsed time: 115.82009461708367 seconds
+----------------------------------------------------------------------
+Job ID           : 34614348
+Cluster          : spartan
+User/Project     : kesumadewij/comp90024
+Nodes            : 1
+Wall-clock time  : 00:02:04 / 00:10:00
+
+Displaying overall resources usage from 2022-04-03 00:07:43 to 2022-04-03 00:09:47:
+
+NODE            CPU#        TOT%   ( USR   / SYS   / WIO   / IDLE  ) 
+
+spartan-bm001 : 
+                CPU# 1    : 85.1   (  71.4 /  13.7 /   0.0 /  14.9 ) 
+                CPU# 2    : 85.3   (  71.1 /  14.2 /   0.0 /  14.7 ) 
+                CPU# 3    : 85.1   (  70.9 /  14.2 /   0.0 /  14.9 ) 
+                CPU# 4    : 85.1   (  71.7 /  13.4 /   0.0 /  14.9 ) 
+                CPU# 5    : 85.3   (  70.9 /  14.4 /   0.0 /  14.7 ) 
+                CPU# 6    : 85.1   (  70.9 /  14.2 /   0.0 /  14.9 ) 
+                CPU# 7    : 88.9   (  74.3 /  14.7 /   0.0 /  11.1 ) 
+                CPU# 8    : 90.3   (  73.3 /  17.0 /   0.0 /   9.7 ) 
+
+
+Allocated CPUs            : 8    
+  CPUs with usage <25%    : 0    
+  CPUs with usage <50%    : 0    
+  CPUs with usage >50%    : 8    
+
+Memory used (RAM)         : 0.0%  [4MB of 32000MB]
+
+--------------------------------------------
+

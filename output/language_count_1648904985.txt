@@ -1,0 +1,17 @@
+Cell	#Total Tweets 	#Number of Languages Used 	#Top 10 Languages & #Tweets 
+A1  	21            	2                         	English-20, French-1        
+A2  	22            	2                         	English-21, Japanese-1      
+A3  	11            	3                         	English-9, Indonesian-1, Thai-1
+A4  	85            	4                         	English-80, French-2, Turkish-2, Spanish-1
+B1  	184           	5                         	English-179, Tagalog-2, Catalan-1, Danish-1, Haitian-1
+B2  	504           	12                        	English-482, Chinese-5, Italian-4, Japanese-3, German-2, Tagalog-2, Estonian-1, Finnish-1, Hindi-1, Indonesian-1
+B3  	641           	12                        	English-610, Chinese-5, Indonesian-5, Japanese-5, Romanian-4, Portuguese-3, Spanish-3, Catalan-2, Danish-1, German-1
+B4  	469           	10                        	English-450, Japanese-8, Portuguese-3, Italian-2, Dutch-1, French-1, German-1, Indonesian-1, Spanish-1, Turkish-1
+C1  	46            	4                         	English-42, French-2, German-1, Haitian-1
+C2  	95            	6                         	English-84, Indonesian-6, Spanish-2, Chinese-1, French-1, Romanian-1
+C3  	4480          	30                        	English-4186, Japanese-56, Spanish-42, Indonesian-32, Catalan-24, Portuguese-15, Chinese-13, Tagalog-13, German-12, Romanian-11
+C4  	962           	21                        	English-888, Haitian-17, Indonesian-6, Japanese-6, Romanian-6, Estonian-5, Italian-5, Spanish-5, Tagalog-4, Catalan-3
+D1  	97            	6                         	English-90, Portuguese-2, Welsh-2, Catalan-1, Lithuanian-1, Spanish-1
+D2  	33            	2                         	English-31, Spanish-2       
+D3  	160           	7                         	English-154, Catalan-1, Estonian-1, Portuguese-1, Spanish-1, Tagalog-1, Thai-1
+D4  	3             	1                         	English-3                   
